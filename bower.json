@@ -1,0 +1,31 @@
+{
+  "name": "agile-proxy-client",
+  "version": "0.0.3",
+  "homepage": "https://github.com/garytaylor/agile-proxy-client",
+  "authors": [
+    "Gary Taylor <gary.taylor@hismessages.com>"
+  ],
+  "description": "Browser based client for the agile-proxy server",
+  "main": "AgileProxy.js",
+  "moduleType": [
+    "amd"
+  ],
+  "keywords": [
+    "agile",
+    "proxy",
+    "client",
+    "test",
+    "spec",
+    "selenium",
+    "integration",
+    "unit"
+  ],
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
