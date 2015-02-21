@@ -3024,7 +3024,7 @@ _.extend(RequestSpec.prototype, {
         return this;
     },
     asJson: function () {
-        return {url: this.url, http_method: this.method, conditions: JSON.stringify(this.conditions), response: this.response.asJson()};
+        return {url: this.url, record_requests: this.recordRequests, http_method: this.method, conditions: JSON.stringify(this.conditions), response: this.response.asJson()};
     },
     setRestUrl: function (value) {
         this._restUrl = value;
