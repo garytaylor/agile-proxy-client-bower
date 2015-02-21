@@ -2932,13 +2932,80 @@ if (typeof window !== 'undefined') {
 }
 
 
-},{"./AgileProxy/proxy":7}],5:[function(require,module,exports){
-var _, Response, request;
+},{"./AgileProxy/proxy":8}],5:[function(require,module,exports){
+var _, request, S;
+_ = require('underscore');
+request = require('request');
+S = require('string');
+function Recording(attrs) {
+    _.extend(this, attrs);
+    this._data = {};
+}
+_.extend(Recording, {
+    all: function (config, cb) {
+        request.get({url: config.restUrl, headers: {'Content-Type': 'application/json'}}, function (err, response, body) {
+            var obj;
+            if (err) {
+                return cb(err);
+            }
+            if (_.isString(body)) {
+                obj = JSON.parse(body);
+            } else {
+                obj = body;
+            }
+            cb(null, _.map(obj.recordings, function (data) {return new Recording(data); }));
+        });
+    }
+});
+_.extend(Recording.prototype, {
+//    t.integer  "application_id"
+//t.text     "request_headers"
+//t.text     "request_body"
+//t.string   "request_url"
+//t.string   "request_method"
+//t.text     "response_headers"
+//t.text     "response_body"
+//t.text     "response_status"
+//t.integer  "request_spec_id"
+//t.datetime "created_at"
+//t.datetime "updated_at"
+    getRequestHeaders: function () {
+        return this.get('requestHeaders');
+    },
+    getRequestBody: function () {
+        return this.get('requestBody');
+    },
+    getRequestUrl: function () {
+        return this.get('requestUrl');
+    },
+    getRequestMethod: function () {
+        return this.get('requestMethod');
+    },
+    getResponseHeaders: function () {
+        return this.get('responseHeaders');
+    },
+    getResponseBody: function () {
+        return this.get('responseBody');
+    },
+    getRequestSpecId: function () {
+        return this.get('requestSpecId');
+    },
+    get: function (camelCasedKey) {
+        return this[S(camelCasedKey).underscore()];
+
+    }
+
+});
+module.exports = Recording;
+},{"request":1,"string":2,"underscore":3}],6:[function(require,module,exports){
+var _, Response, request, Recording;
 _ = require('underscore');
 Response = require('./Response');
+Recording = require('./Recording');
 request = require('request');
 function RequestSpec(attrs) {
     _.extend(this, {method: 'GET'}, attrs);
+    this._data = {};
 }
 _.extend(RequestSpec, {
     removeAll: function (url, callback) {
@@ -2959,8 +3026,16 @@ _.extend(RequestSpec.prototype, {
     asJson: function () {
         return {url: this.url, http_method: this.method, conditions: JSON.stringify(this.conditions), response: this.response.asJson()};
     },
-    done: function (url, callback) {
-        var obj;
+    setRestUrl: function (value) {
+        this._restUrl = value;
+    },
+    getRestUrl: function () {
+        return this._restUrl;
+    },
+    done: function (callback) {
+        var obj, me, url;
+        me = this;
+        url = this.getRestUrl();
         request.post({url: url, json: this.asJson()}, function (err, response, body) {
             var obj;
             if (!err) {
@@ -2970,17 +3045,26 @@ _.extend(RequestSpec.prototype, {
                 } else {
                     obj = body;
                 }
-
+                me._data = obj;
                 callback.apply(this, [null, obj.mock_request]);
             } else {
                 callback.apply(this, [err, '']);
             }
         });
+    },
+    getId: function () {
+        return this._data.id;
+    },
+    getRecordings: function (cb) {
+        if (!this.getId()) {
+            throw new Error('This request spec has not been saved yet');
+        }
+        Recording.all({restUrl: this.getRestUrl() + '/' + this.getId() + '/recordings'}, cb);
     }
 
 });
 module.exports = RequestSpec;
-},{"./Response":6,"request":1,"underscore":3}],6:[function(require,module,exports){
+},{"./Recording":5,"./Response":7,"request":1,"underscore":3}],7:[function(require,module,exports){
 var _, S;
 _ = require('underscore');
 S = require('string');
@@ -3046,7 +3130,7 @@ _.extend(Response.prototype, {
 module.exports = Response;
 
 
-},{"string":2,"underscore":3}],7:[function(require,module,exports){
+},{"string":2,"underscore":3}],8:[function(require,module,exports){
 var _, RequestSpec;
 _ = require('underscore');
 RequestSpec = require('./RequestSpec');
@@ -3071,7 +3155,11 @@ _.extend(Proxy.prototype, {
      * on the request spec, or for a simpler way of defining multiple stubs with a single callback, see {@link #define}
      */
     stub: function (url, options) {
-        return new RequestSpec(_.extend({url: url}, options));
+        var r, config;
+        config = this.getConfig();
+        r = new RequestSpec(_.extend({url: url}, options));
+        r.setRestUrl(config.restUrl + '/' + config.apiVersion + '/users/' + config.userId + '/applications/' + config.applicationId + '/request_specs');
+        return r;
     },
     config: function (configObj) {
         _.extend(this._config, configObj);
@@ -3091,7 +3179,7 @@ _.extend(Proxy.prototype, {
      * @param {Object} scope The scope of the callback
      */
     define: function (defsOrFn, callback, scope) {
-        var callbacksCalled, restUrl, config, collectedSpecs;
+        var callbacksCalled, collectedSpecs;
         function privateCallback (error, response) {
             if (error) {
                 callback.apply(scope || this, [error]);
@@ -3112,8 +3200,6 @@ _.extend(Proxy.prototype, {
                 }
             };
         }
-        config = this.getConfig();
-        restUrl = config.restUrl + '/' + config.apiVersion + '/users/' + config.userId + '/applications/' + config.applicationId + '/request_specs';
         if (_.isFunction(defsOrFn)) {
             collectedSpecs = [];
             defsOrFn.apply(this, [generateProxy(this)]);
@@ -3122,7 +3208,7 @@ _.extend(Proxy.prototype, {
         if (defsOrFn instanceof Array) {
             callbacksCalled = defsOrFn.length;
             _.each(defsOrFn, function (def) {
-                def.done(restUrl, privateCallback, this);
+                def.done(privateCallback, this);
             });
         }
 
@@ -3140,5 +3226,5 @@ _.extend(Proxy.prototype, {
 module.exports = Proxy;
 
 
-},{"./RequestSpec":5,"underscore":3}]},{},[4])(4)
+},{"./RequestSpec":6,"underscore":3}]},{},[4])(4)
 });
